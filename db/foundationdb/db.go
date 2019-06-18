@@ -27,7 +27,6 @@ import (
 
 const (
 	fdbClusterFile = "fdb.cluster"
-	fdbDatabase    = "fdb.dbname"
 	fdbAPIVersion  = "fdb.apiversion"
 )
 
@@ -39,12 +38,11 @@ type fDB struct {
 
 func createDB(p *properties.Properties) (ycsb.DB, error) {
 	clusterFile := p.GetString(fdbClusterFile, "")
-	database := p.GetString(fdbDatabase, "DB")
-	apiVersion := p.GetInt(fdbAPIVersion, 510)
+	apiVersion := p.GetInt(fdbAPIVersion, 610)
 
 	fdb.MustAPIVersion(apiVersion)
 
-	db, err := fdb.Open(clusterFile, []byte(database))
+	db, err := fdb.OpenDatabase(clusterFile)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +78,7 @@ func (db *fDB) getEndRowKey(table string) []byte {
 
 func (db *fDB) Read(ctx context.Context, table string, key string, fields []string) (map[string][]byte, error) {
 	rowKey := db.getRowKey(table, key)
-	row, err := db.db.Transact(func(tr fdb.Transaction) (interface{}, error) {
+	row, err := db.db.ReadTransact(func(tr fdb.ReadTransaction) (interface{}, error) {
 		f := tr.Get(fdb.Key(rowKey))
 		return f.Get()
 	})
