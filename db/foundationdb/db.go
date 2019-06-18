@@ -16,6 +16,7 @@
 package foundationdb
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -184,6 +185,100 @@ func (db *fDB) Delete(ctx context.Context, table string, key string) error {
 	rowKey := db.getRowKey(table, key)
 	_, err := db.db.Transact(func(tr fdb.Transaction) (ret interface{}, e error) {
 		tr.Clear(fdb.Key(rowKey))
+		return
+	})
+	return err
+}
+
+func (db *fDB) BatchInsert(ctx context.Context, table string, keys []string, values []map[string][]byte) error {
+	_, err := db.db.Transact(func(tr fdb.Transaction) (ret interface{}, e error) {
+		buffers := make([]*bytes.Buffer, 0, len(keys))
+		defer func() {
+			for _, buf := range buffers {
+				db.bufPool.Put(buf)
+			}
+		}()
+		for i, key := range keys {
+			buf := db.bufPool.Get()
+			buffers = append(buffers, buf)
+			rowKey := db.getRowKey(table, key)
+			rawData, err := db.r.Encode(buf.Bytes(), values[i])
+			if err != nil {
+				return nil, err
+			}
+			tr.Set(fdb.Key(rowKey), rawData)
+		}
+		return
+	})
+	return err
+}
+
+func (db *fDB) BatchRead(ctx context.Context, table string, keys []string, fields []string) ([]map[string][]byte, error) {
+	res, err := db.db.ReadTransact(func(tr fdb.ReadTransaction) (ret interface{}, e error) {
+		datum := make([]map[string][]byte, 0, len(keys))
+		for _, key := range keys {
+			rowKey := db.getRowKey(table, key)
+			f := tr.Get(fdb.Key(rowKey))
+			row, err := f.Get()
+			if err != nil {
+				return nil, err
+			}
+			data, err := db.r.Decode(row, fields)
+			if err != nil {
+				return nil, err
+			}
+			datum = append(datum, data)
+		}
+		return datum, nil
+	})
+	return res.([]map[string][]byte), err
+}
+
+func (db *fDB) BatchUpdate(ctx context.Context, table string, keys []string, values []map[string][]byte) error {
+	_, err := db.db.Transact(func(tr fdb.Transaction) (ret interface{}, e error) {
+		for i, key := range keys {
+			rowKey := db.getRowKey(table, key)
+
+			f := tr.Get(fdb.Key(rowKey))
+			row, err := f.Get()
+			if err != nil {
+				return nil, err
+			} else if row == nil {
+				return nil, nil
+			}
+
+			data, err := db.r.Decode(row, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			for field, value := range values[i] {
+				data[field] = value
+			}
+
+			buf := db.bufPool.Get()
+
+			rowData, err := db.r.Encode(buf.Bytes(), data)
+			if err != nil {
+				db.bufPool.Put(buf)
+				return nil, err
+			}
+
+			tr.Set(fdb.Key(rowKey), rowData)
+			db.bufPool.Put(buf)
+		}
+		return
+	})
+
+	return err
+}
+
+func (db *fDB) BatchDelete(ctx context.Context, table string, keys []string) error {
+	_, err := db.db.Transact(func(tr fdb.Transaction) (ret interface{}, e error) {
+		for _, key := range keys {
+			rowKey := db.getRowKey(table, key)
+			tr.Clear(fdb.Key(rowKey))
+		}
 		return
 	})
 	return err
