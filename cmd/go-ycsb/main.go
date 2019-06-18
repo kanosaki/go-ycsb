@@ -63,6 +63,8 @@ import (
 	_ "github.com/pingcap/go-ycsb/db/mongodb"
 	// Register redis database
 	_ "github.com/pingcap/go-ycsb/db/redis"
+	// Register epsilon database
+	_ "github.com/pingcap/go-ycsb/db/epsilon"
 )
 
 var (
