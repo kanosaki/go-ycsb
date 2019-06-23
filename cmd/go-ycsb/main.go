@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -27,7 +28,7 @@ import (
 
 	// Register workload
 
-	"fmt"
+	"github.com/spf13/cobra"
 
 	"github.com/pingcap/go-ycsb/pkg/client"
 	"github.com/pingcap/go-ycsb/pkg/measurement"
@@ -35,7 +36,6 @@ import (
 	"github.com/pingcap/go-ycsb/pkg/util"
 	_ "github.com/pingcap/go-ycsb/pkg/workload"
 	"github.com/pingcap/go-ycsb/pkg/ycsb"
-	"github.com/spf13/cobra"
 
 	// Register basic database
 	_ "github.com/pingcap/go-ycsb/db/basic"
@@ -163,6 +163,7 @@ func main() {
 		newShellCommand(),
 		newLoadCommand(),
 		newRunCommand(),
+		newWorkerCommand(),
 	)
 
 	cobra.EnablePrefixMatching = true
